@@ -20,7 +20,7 @@ Bump it on purpose, then run the workflow with `force`.
 
 ## Verify an image
 
-    gh attestation verify oci://ghcr.io/imjusttony/caddy-cloudflare:latest --owner imjusttony
+    gh attestation verify oci://ghcr.io/imjusttony/caddy-cloudflare:latest --repo ImJustToNy/caddy-cloudflare
 
 ## Build locally (e.g. during disaster recovery)
 
