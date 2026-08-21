@@ -1,0 +1,91 @@
+name: build
+
+on:
+  schedule:
+    - cron: "17 4 * * *" # daily; builds only when there is a new Caddy release, plus a weekly base refresh on Sundays
+  workflow_dispatch:
+    inputs:
+      force:
+        description: Build even if this Caddy version is already published
+        type: boolean
+        default: false
+
+permissions:
+  contents: read
+  packages: write
+
+env:
+  IMAGE: ghcr.io/imjusttony/caddy-cloudflare
+
+concurrency:
+  group: build
+  cancel-in-progress: false
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Resolve latest Caddy release
+        id: caddy
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          tag=$(gh api repos/caddyserver/caddy/releases/latest --jq .tag_name) # /latest excludes pre-releases
+          echo "version=${tag#v}" >> "$GITHUB_OUTPUT"
+          echo "Latest Caddy: $tag"
+
+      - name: Log in to GHCR
+        uses: docker/login-action@dbcb813823bdd20940b903addbd779551569679f # v4.6.0
+        with:
+          registry: ghcr.io
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Decide whether to build
+        id: decide
+        env:
+          VERSION: ${{ steps.caddy.outputs.version }}
+          FORCE: ${{ inputs.force }}
+        run: |
+          if [ "$FORCE" = "true" ]; then
+            reason=forced
+          elif [ "$(date -u +%u)" = "7" ]; then
+            reason=weekly-base-image-refresh
+          elif ! docker manifest inspect "$IMAGE:$VERSION" >/dev/null 2>&1; then
+            reason=new-caddy-release
+          else
+            reason=
+          fi
+          echo "build=$([ -n "$reason" ] && echo true || echo false)" >> "$GITHUB_OUTPUT"
+          echo "Caddy $VERSION: ${reason:-already published, nothing to do}"
+
+      - name: Check out
+        if: steps.decide.outputs.build == 'true'
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+
+      - name: Set up Buildx
+        if: steps.decide.outputs.build == 'true'
+        uses: docker/setup-buildx-action@37fe631027851001ddb9b187196cc803df7f5f0e # v4.3.0
+
+      - name: Build and push
+        if: steps.decide.outputs.build == 'true'
+        uses: docker/build-push-action@53b7df96c91f9c12dcc8a07bcb9ccacbed38856a # v7.3.0
+        with:
+          context: .
+          platforms: linux/amd64
+          pull: true
+          push: true
+          provenance: mode=max
+          sbom: true
+          build-args: |
+            CADDY_VERSION=${{ steps.caddy.outputs.version }}
+          tags: |
+            ${{ env.IMAGE }}:${{ steps.caddy.outputs.version }}
+            ${{ env.IMAGE }}:latest
+          labels: |
+            org.opencontainers.image.source=${{ github.server_url }}/${{ github.repository }}
+            org.opencontainers.image.title=caddy-cloudflare
+            org.opencontainers.image.description=Caddy ${{ steps.caddy.outputs.version }} with caddy-dns/cloudflare
+            org.opencontainers.image.version=${{ steps.caddy.outputs.version }}
