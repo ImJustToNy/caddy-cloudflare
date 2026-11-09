@@ -1,6 +1,6 @@
 # Caddy + caddy-dns/cloudflare, built the way the official caddy image docs describe.
 # Both stages come from the official library image; only the binary is replaced.
-ARG CADDY_VERSION=2.11.4
+ARG CADDY_VERSION=2.11.9
 
 FROM caddy:${CADDY_VERSION}-builder-alpine AS builder
 # Pinned on purpose: a plugin bump is a deliberate commit, not a side effect of a rebuild.

@@ -24,4 +24,4 @@ Bump it on purpose, then run the workflow with `force`.
 
 ## Build locally (e.g. during disaster recovery)
 
-    docker build --build-arg CADDY_VERSION=2.11.4 -t caddy-cloudflare:local .
+    docker build --build-arg CADDY_VERSION=2.11.9 -t caddy-cloudflare:local .
